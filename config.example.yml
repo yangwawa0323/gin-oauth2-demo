@@ -1,8 +1,8 @@
 oauth2:
   providers:
     google:
-      client_id: 155236469314-adl626hon999kd5a7emgbnibli7f4g72.apps.googleusercontent.com
-      client_secret: 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
+      client_id: your_client_id
+      client_secret: your_client_secret
       redirect_uri: http://localhost:8080/auth/google/callback
       scopes:
         - https://www.googleapis.com/auth/userinfo.email
