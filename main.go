@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -54,13 +56,24 @@ func main() {
 	r := gin.Default()
 
 	r.GET("/auth/google/login", func(c *gin.Context) {
-		url := googleOauthConfig.AuthCodeURL("state")
+		// IMPORTANT!IMPORTANT!IMPORTANT!
+		// the state parameter is used to protect against CSRF attacks, compare the state string
+		// come from google and user cookie for each request.
+		state := generateStateOauthCookie(c)
+		url := googleOauthConfig.AuthCodeURL(state)
 		c.Redirect(http.StatusTemporaryRedirect, url)
 	})
 
 	r.GET("/auth/google/callback", func(c *gin.Context) {
-		// your code to get the access token from Google
-		// token := "your-access-token"
+		// IMPORTANT!IMPORTANT!IMPORTANT!
+		// the state parameter is used to protect against CSRF attacks, compare the state string
+		// come from google and user cookie for each request.
+		cookie, _ := c.Cookie("oauthstate")
+		if cookie != c.Query("state") {
+			fmt.Println("Invalid oauth state, cookie:" + cookie + ", url:" + c.Request.URL.String())
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
 
 		code := c.Query("code")
 		token, err := googleOauthConfig.Exchange(c, code)
@@ -71,6 +84,11 @@ func main() {
 		}
 
 		tokenJSON, err := json.Marshal(token)
+
+		if err != nil {
+			handleInternalServerError(c, err)
+			return
+		}
 
 		c.SetCookie("token", string(tokenJSON), 3600, "/", "", false, true)
 		c.Redirect(http.StatusMovedPermanently, "/")
@@ -120,6 +138,15 @@ func handleBadRequest(c *gin.Context, err error) {
 		"error": err.Error(),
 	})
 	c.Abort()
+}
+
+// Generate random state string
+func generateStateOauthCookie(c *gin.Context) string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	state := base64.URLEncoding.EncodeToString(b)
+	c.SetCookie("oauthstate", state, 3600, "/", "localhost", false, true)
+	return state
 }
 
 // func getUserInfo(token string) (*oauth2_v2.Userinfo, error) {
